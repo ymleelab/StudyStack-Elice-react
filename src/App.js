@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 import Button from '@mui/material/Button';
-import ButtonGroup from '@mui/material/ButtonGroup';
 import styled from 'styled-components';
-import { Link, Routes, Route } from 'react-router-dom';
+import { Link, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import { Header } from './Header';
 import { Nav } from './Nav';
 import { Article } from './Article';
@@ -15,81 +14,105 @@ const HeaderStyled = styled(Header)`
   color: red;
 `;
 
+function Control(props) {
+  const params = useParams();
+  const id = Number(params.topic_id);
+  let contextUI = null;
+  if (id) {
+    contextUI = (
+      <>
+        <Button component={Link} to="/update" variant="outlined">
+          Update
+        </Button>
+        <Button
+          variant="outlined"
+          onClick={() => {
+            props.onDelete(id);
+          }}
+        >
+          Delete
+        </Button>
+      </>
+    );
+  }
+  return (
+    <>
+      <Button component={Link} to="/create" variant="outlined">
+        Create
+      </Button>
+      {contextUI}
+    </>
+  );
+}
+
 function App() {
-  const [mode, setMode] = useState('WELCOME'); //todo 삭제 예정
-  const [id, setId] = useState(null); //todo 삭제 예정
-  const [nextId, setNextId] = useState(3);
   const [topics, setTopics] = useState([
     { id: 1, title: 'html', body: 'html is ...' },
     { id: 2, title: 'css', body: 'css is ...' },
   ]);
 
+  const refreshTopics = async () => {
+    const res = await fetch('http://localhost:3333/topics');
+    const data = await res.json();
+    setTopics(data);
+  };
+  useEffect(() => {
+    refreshTopics();
+  }, []);
+  const navigate = useNavigate();
+
   return (
     <div>
-      <HeaderStyled onSelect={headerHandler()}></HeaderStyled>
-      <Nav data={topics} onSelect={navHandler()}></Nav>
+      <HeaderStyled></HeaderStyled>
+      <Nav data={topics}></Nav>
       <Routes>
         <Route path="/" element={<Article title="Welcome" body="Hello, WEB!"></Article>}></Route>
-        <Route path="/create" element={<Create onCreate={onCreateHandler()}></Create>}></Route>
+        <Route path="/create" element={<Create onCreate={onCreateHandler}></Create>}></Route>
         <Route path="read/:topic_id" element={<Read topics={topics}></Read>}></Route>
       </Routes>
-      <ButtonGroup variant="contained" aria-label="outlined primary button group">
-        <Button component={Link} to="/create" variant="outlined" onClick={createHandler()}>
-          Create
-        </Button>
-        <Button component={Link} to="/update" variant="outlined">
-          Update
-        </Button>
-      </ButtonGroup>
-      <Button variant="outlined" onClick={deleteHandler()}>
-        Delete
-      </Button>
+      <Routes>
+        {['/', 'read/:topic_id', '/update/:topic_id'].map((path) => {
+          return (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <Control
+                  onDelete={(id) => {
+                    deleteHandler(id);
+                  }}
+                ></Control>
+              }
+            ></Route>
+          );
+        })}
+      </Routes>
     </div>
   );
 
-  function onCreateHandler() {
-    return (title, body) => {
-      const newTopic = { id: nextId, title, body };
-      const newTopics = [...topics];
-      newTopics.push(newTopic);
-      setTopics(newTopics);
-      setId(nextId);
-      setMode('READ');
-      setNextId(nextId + 1);
-    };
+  async function onCreateHandler(title, body) {
+    const res = await fetch('http://localhost:3333/topics', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title, body }),
+    });
+    const data = await res.json();
+    navigate(`/read/${data.id}`);
+    refreshTopics();
   }
 
-  function createHandler() {
-    return () => {
-      setMode('CREATE');
-    };
-  }
-
-  function navHandler() {
-    return (id) => {
-      setMode('READ');
-      setId(id);
-    };
-  }
-
-  function deleteHandler() {
-    return () => {
-      const newTopics = topics.filter((e) => {
-        if (e.id === id) {
-          return false;
-        } else {
-          return true;
-        }
-      });
-      setMode('WELCOME');
-      setTopics(newTopics);
-    };
-  }
-
-  function headerHandler() {
-    return () => {
-      setMode('WELCOME');
-    };
+  function deleteHandler(id) {
+    const newTopics = topics.filter((e) => {
+      if (e.id === id) {
+        return false;
+      } else {
+        return true;
+      }
+    });
+    setTopics(newTopics);
+    navigate('/');
   }
 }
 
